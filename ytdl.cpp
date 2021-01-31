@@ -3,24 +3,25 @@
 #include <filesystem>
 #include <string>
 #include <sstream>
+
 namespace fs = std::filesystem;
 namespace fileop
 {
     fs::path expand_env(const std::string &text, const bool &verbose)
     {
-        static const std::regex env_re{R"--(\$\{([^}]+)\})--"};
+        static const std::regex env_re{R"--(\$\{([^}]+)\})--"}; //regex to match ${...}
         std::smatch match;
         std::stringstream result;
-        for (auto i = std::sregex_iterator(text.begin(), text.end(), env_re); i != std::sregex_iterator(); i++)
+        for (auto i = std::sregex_iterator(text.begin(), text.end(), env_re); i != std::sregex_iterator(); i++) // iterate through all matches
         {
             match = *i;
-            result << match.prefix();
+            result << match.prefix(); // add the prefix (i.e add chars between matches or beginning) to result
             if (verbose)
                 std::cout << match.str() << "\n";
-            auto const from = match[0];
-            auto const var_name = match[1].str();
+            auto const from = match[0];           //entire match
+            auto const var_name = match[1].str(); // captured group i.e name of env variable
             const char *env = std::getenv(var_name.c_str());
-            if (env == nullptr)
+            if (env == nullptr) // varname NOT a valid environement variable
             {
                 char input;
                 do
@@ -40,11 +41,11 @@ namespace fileop
                 } while (true);
                 switch (input)
                 {
-                case 'A':
+                case 'A': // Abort
                     std::cout << "Aborting...\n";
                     std::exit(1);
                     break;
-                case 'N':
+                case 'N': // Provide Replacement value
                 {
                     std::string new_path;
                     std::cout << "Enter New Path: ";
@@ -52,7 +53,7 @@ namespace fileop
                     result << new_path;
                 }
                 break;
-                case 'C':
+                case 'C': // continue with ${...}
                     result << match.str();
                     break;
                 }
@@ -63,6 +64,7 @@ namespace fileop
         result << match.suffix();
         return fs::path((!result.str().empty()) ? result.str() : text).lexically_normal();
     }
+
     fs::path resolve_filepath(const fs::path &filepath, const char *preferred_parent)
     {
         fs::path parentDir;
@@ -97,14 +99,14 @@ std::string get_URL()
     std::string URL;
     std::cout << "Enter URL: ";
     std::cin.ignore();
-    std::getline(std::cin, URL);
+    std::getline(std::cin, URL); // input can include spaces so flush cin and getline
     return URL;
 }
 
 using namespace std::string_literals;
 int main(int argc, const char **argv)
 {
-    bool verbose = (std::string(argv[argc - 1]) == "-v");
+    bool verbose = (std::string(argv[argc - 1]) == "-v"); //if last arg is '-v', enable verbose mode.
     fs::path filepath;
     std::string URL;
     filepath = (argc < 2 || (verbose && argc < 3)) ? get_filepath(verbose) : argv[1];
@@ -116,31 +118,34 @@ int main(int argc, const char **argv)
         std::exit(1);
     }
 
-    std::string extension = filepath.extension().string().substr(1);
+    std::string extension = filepath.extension().string().substr(1); // extension withouth .
     fs::path filename = filepath.filename();
 
     char *mediaFolder;   // env-var $MUSIC or $VIDEOS depending on extension
     std::string recode;  // recode to different format
     std::string quality; // quality of video or audio (bestvideo+bestuadio / bestaudio)
     if (std::regex_match(filename.string(), std::regex(".+\\.(mp3|flac|aac|m4a|opus|vorbis|wav)$")))
+    // is audio file
     {
         mediaFolder = std::getenv("MUSIC");
         recode = "-x --audio-format "s + extension;
         quality = "bestaudio";
     }
     else if (std::regex_match(filename.string(), std::regex(".+\\.(mp4|flv|ogg|webm|mkv|avi)$")))
+    // is video file
     {
         mediaFolder = std::getenv("VIDEOS");
         recode = "--recode-video "s + extension;
         quality = "bestvideo+bestaudio";
     }
     else
+    // is neither audio or video! abort and report to stderr
     {
         std::cerr << "Invalid file format! " << extension << "\n";
         std::exit(1);
     }
 
-    filepath = fs::absolute(fileop::resolve_filepath(filepath, mediaFolder));
+    filepath = fs::absolute(fileop::resolve_filepath(filepath, mediaFolder)); // resolve and convert to absolute
     std::cout << filepath.string() << "." << extension << "\n";
 
     URL = (argc < 3 || (verbose && argc < 4)) ? get_URL() : argv[2];
@@ -163,7 +168,7 @@ int main(int argc, const char **argv)
         } while (true);
 
         if (input == 'y')
-            URL = "'ytsearch:" + URL + "'";
+            URL = "'ytsearch:" + URL + "'"; // change URL(i.e search_term) to 'ytsearch:URL'
         else
             std::exit(1);
     }
