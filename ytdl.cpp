@@ -12,9 +12,9 @@ namespace fileop
         static const std::regex env_re{R"--(\$\{([^}]+)\})--"}; //regex to match ${...}
         std::smatch match;
         std::stringstream result;
-        for (auto i = std::sregex_iterator(text.begin(), text.end(), env_re); i != std::sregex_iterator(); i++) // iterate through all matches
+        for (auto it = std::sregex_iterator(text.begin(), text.end(), env_re); it != std::sregex_iterator(); it++) // iterate through all matches
         {
-            match = *i;
+            match = *it;
             result << match.prefix(); // add the prefix (i.e add chars between matches or beginning) to result
             if (verbose)
                 std::cout << match.str() << "\n";
@@ -32,12 +32,12 @@ namespace fileop
                               << "3) Continue with '" << from.str() << "' (C)\n"
                               << "Enter option (A/N/C): ";
                     std::cin >> input;
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                     char input = toupper(input);
                     if ((input == 'A') || (input == 'N') || (input = 'C'))
                         break;
                     std::cout << "entered: '" << input << "'\n";
                     std::cout << "You may only type 'A' or 'N' or 'C'.\n";
-                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                 } while (true);
                 switch (input)
                 {
@@ -50,6 +50,7 @@ namespace fileop
                     std::string new_path;
                     std::cout << "Enter New Path: ";
                     std::cin >> new_path;
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                     result << new_path;
                 }
                 break;
@@ -59,7 +60,7 @@ namespace fileop
                 }
             }
             else
-                result << std::string(env);
+                result << std::string(env); // append envrionment variable's value to the path string
         }
         result << match.suffix();
         return fs::path((!result.str().empty()) ? result.str() : text).lexically_normal();
@@ -89,7 +90,7 @@ fs::path get_filepath(const bool &verbose)
 {
     std::string filepath;
     std::cout << "Enter filepath: ";
-    std::cin >> filepath;
+    std::getline(std::cin, filepath);
     filepath = fileop::expand_env(filepath, verbose);
     return filepath;
 }
@@ -98,7 +99,6 @@ std::string get_URL()
 {
     std::string URL;
     std::cout << "Enter URL: ";
-    std::cin.ignore();
     std::getline(std::cin, URL); // input can include spaces so flush cin and getline
     return URL;
 }
@@ -159,12 +159,12 @@ int main(int argc, const char **argv)
                       << " Search \"" << URL
                       << "\" on youtube instead?(y/n): ";
             std::cin >> input;
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
             if ((input == 'y') || (input == 'n'))
                 break;
             std::cout << "entered: '" << input << "'\n";
             std::cout << "You may only type 'y' or 'n'.\n";
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         } while (true);
 
         if (input == 'y')
