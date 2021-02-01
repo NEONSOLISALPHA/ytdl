@@ -111,7 +111,7 @@ int main(int argc, const char **argv)
     std::string URL;
     filepath = (argc < 2 || (verbose && argc < 3)) ? get_filepath(verbose) : argv[1];
 
-    // extensionless file! terminate and report to stderr
+    // extension-less file! terminate and report to stderr
     if (filepath.extension().empty())
     {
         std::cerr << "Invalid Filename! " << filepath.string() << '\n';
@@ -149,8 +149,7 @@ int main(int argc, const char **argv)
     std::cout << filepath.string() << "." << extension << "\n";
 
     URL = (argc < 3 || (verbose && argc < 4)) ? get_URL() : argv[2];
-    bool is_valid_URL = (!std::regex_match(URL, std::regex(R"(^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$)")));
-    if (is_valid_URL)
+    if (!std::regex_match(URL, std::regex(R"(^(https?\:\/\/)?(www\.youtube\.com|youtu\.?be)\/.+$)")))
     {
         char input;
         do
