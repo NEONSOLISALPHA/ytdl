@@ -1,11 +1,13 @@
-#include <iostream>
-#include <regex>
 #include <filesystem>
-#include <string>
+#include <string_view>
+#include <iostream>
+#include <vector>
+#include <regex>
 #include <sstream>
+#include <string>
 
 namespace fs = std::filesystem;
-using namespace std::string_literals;
+
 namespace fileop
 {
     fs::path expand_env(const std::string &text, const bool &verbose)
@@ -85,44 +87,6 @@ namespace fileop
             parentDir = (preferred_parent == nullptr || !fs::exists(preferred_parent)) ? fs::current_path() : fs::path(preferred_parent);
         return parentDir / filepath.stem();
     }
-
-    std::tuple<char *, std::string, std::string> get_mediadir_and_args(const std::string &filename, const std::string &extension)
-    {
-        char *mediaFolder;   // env-var $MUSIC or $VIDEOS depending on extension
-        std::string recode;  // recode to different format
-        std::string quality; // quality of video or audio (bestvideo+bestuadio / bestaudio)
-        if (std::regex_match(filename, std::regex(".+\\.(mp3|flac|aac|m4a|opus|vorbis|wav)$")))
-        // is audio file
-        {
-            mediaFolder = std::getenv("MUSIC");
-            recode = "-x --audio-format "s + extension;
-            quality = "bestaudio";
-        }
-        else if (std::regex_match(filename, std::regex(".+\\.(mp4|flv|ogg|webm|mkv|avi)$")))
-        // is video file
-        {
-            mediaFolder = std::getenv("VIDEOS");
-            recode = "--recode-video "s + extension;
-            quality = "bestvideo+bestaudio";
-        }
-        else
-        // is neither audio or video! abort and report to stderr
-        {
-            std::cerr << "Invalid file format! " << extension << "\n";
-            std::exit(1);
-        }
-        return {mediaFolder, recode, quality};
-    }
-
-    void check_has_extension(const fs::path &filepath)
-    {
-        if (filepath.extension().empty())
-        {
-            std::cerr << "Invalid Filename! " << filepath << '\n';
-            std::exit(1);
-        }
-    }
-
 } // namespace fileop
 
 fs::path get_filepath(const bool &verbose)
@@ -144,70 +108,4 @@ std::string get_URL()
 
 int main(int argc, char **argv)
 {
-    bool verbose = false;
-    int non_flag_args = 0;
-    fs::path filepath;
-    bool flag_lock = false;
-    std::string URL;
-    std::vector<std::string> arguments;
-    for (char **arg = argv + 1; *arg; arg++)
-    {
-        std::string arg_str = std::string(*arg);
-        if (arg_str[0] != '-' && !flag_lock)
-        {
-            if (non_flag_args == 0)
-                filepath = fs::path(arg_str);
-            else if (non_flag_args == 1)
-                URL = arg_str;
-            non_flag_args++;
-        }
-        else
-        {
-            if (arg_str == "-v")
-                verbose = true;
-            arguments.push_back(arg_str);
-            flag_lock = true;
-        }
-    }
-    if (non_flag_args < 1)
-        filepath = get_filepath(verbose);
-    fileop::check_has_extension(filepath);
-    std::string extension = filepath.extension().string().substr(1); // extension withouth .
-    fs::path filename = filepath.filename();
-    auto [mediaFolder, recode, quality] = fileop::get_mediadir_and_args(filename.string(), extension);
-    filepath = fs::absolute(fileop::resolve_filepath(filepath, mediaFolder)); // resolve and convert to absolute
-    std::cout << filepath.string() << "." << extension << "\n";
-    if (non_flag_args < 2)
-        URL = get_URL();
-
-    // extension-less file! terminate and report to stderr
-    if (!std::regex_match(URL, std::regex(R"(^(https?\:\/\/)?(www\.youtube\.com|youtu\.?be)\/.+$)")))
-    {
-        char input;
-        do
-        {
-            std::cout << "'" << URL << "' is not a valid URL."
-                      << " Search \"" << URL
-                      << "\" on youtube instead?(y/n): ";
-            std::cin >> input;
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-            if ((input == 'y') || (input == 'n'))
-                break;
-            std::cout << "entered: '" << input << "'\n";
-            std::cout << "You may only type 'y' or 'n'.\n";
-        } while (true);
-
-        if (input == 'y')
-            URL = "'ytsearch:" + URL + "'"; // change URL(i.e search_term) to 'ytsearch:URL'
-        else
-            std::exit(1);
-    }
-
-    std::string command = "youtube-dl -f "s + quality + " "s + URL + " "s + recode + " -o '" + filepath.string() + ".%(ext)s'" + " --no-mtime"s;
-    for (std::string i : arguments)
-        command += " "s + i;
-    if (verbose)
-        std::cout << command << "\n";
-    std::system(command.c_str());
 }
