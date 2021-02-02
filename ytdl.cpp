@@ -25,38 +25,40 @@ namespace fileop
             if (env == nullptr) // varname NOT a valid environement variable
             {
                 char input;
-                do
+                while (true)
                 {
                     std::cout << "The Environment variable " << var_name << " doesn't exist.\n"
-                              << "1) Abort(A)\n"
-                              << "2) Enter new value(N)\n"
-                              << "3) Continue with '" << from.str() << "' (C)\n"
+                              << "1) [A]bort\n"
+                              << "2) Enter [N]ew value\n"
+                              << "3) [C]ontinue with '" << from.str() << "'\n"
                               << "Enter option (A/N/C): ";
-                    std::cin >> input;
+                    input = std::cin.get();
                     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                    char input = toupper(input);
-                    if ((input == 'A') || (input == 'N') || (input = 'C'))
+                    input = toupper(input);
+
+                    if (input == 'A' || input == 'N' || input == 'C')
                         break;
-                    std::cout << "entered: '" << input << "'\n";
+                    std::cin.clear();
                     std::cout << "You may only type 'A' or 'N' or 'C'.\n";
-                } while (true);
+                }
+
                 switch (input)
                 {
-                case 'A': // Abort
-                    std::cout << "Aborting...\n";
-                    std::exit(1);
-                    break;
                 case 'N': // Provide Replacement value
                 {
                     std::string new_path;
                     std::cout << "Enter New Path: ";
-                    std::cin >> new_path;
-                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    std::getline(std::cin, new_path);
                     result << new_path;
                 }
                 break;
                 case 'C': // continue with ${...}
                     result << match.str();
+                    break;
+                case 'A':
+                default: // Abort
+                    std::cout << "Aborting... \n";
+                    std::exit(1);
                     break;
                 }
             }
@@ -67,55 +69,61 @@ namespace fileop
         return fs::path((!result.str().empty()) ? result.str() : text).lexically_normal();
     }
 
-    fs::path resolve_filepath(const fs::path &filepath, const char *preferred_parent)
+    std::tuple<fs::path, std::string, std::string> get_path_and_args(const fs::path filepath, const bool &print_filepath)
     {
-        fs::path parentDir;
-        if (filepath.has_parent_path())
-        {
-            fs::path parentPath = filepath.parent_path();
-            if (!fs::exists(parentPath)) // create parent directories if they don't exist
-            {
-                std::cout << "Creating parent directories..." << parentPath.lexically_normal().string() << "\n";
-                fs::create_directories(parentPath);
-            }
-            parentDir = parentPath;
-        }
-        else
-            // check if preferred parent is set and exists, else set parent to current path
-            parentDir = (preferred_parent == nullptr || !fs::exists(preferred_parent)) ? fs::current_path() : fs::path(preferred_parent);
-        return parentDir / filepath.stem();
-    }
-
-    std::tuple<char *, std::string, std::string> get_mediadir_and_args(const std::string &filename, const std::string &extension)
-    {
-        char *mediaFolder;   // env-var $MUSIC or $VIDEOS depending on extension
+        fs::path media_dir;  // parent directory of media file
         std::string recode;  // recode to different format
         std::string quality; // quality of video or audio (bestvideo+bestuadio / bestaudio)
+        char *media_env_var; // env-var $MUSIC or $VIDEOS depending on extension
+        std::string filename = filepath.filename().string();
+        std::string extension_string = filepath.extension().string().substr(1);
         if (std::regex_match(filename, std::regex(".+\\.(mp3|flac|aac|m4a|opus|vorbis|wav)$")))
         // is audio file
         {
-            mediaFolder = std::getenv("MUSIC");
-            recode = "-x --audio-format "s + extension;
+            media_env_var = std::getenv("MUSIC");
+            recode = "-x --audio-format "s + extension_string;
             quality = "bestaudio";
         }
         else if (std::regex_match(filename, std::regex(".+\\.(mp4|flv|ogg|webm|mkv|avi)$")))
         // is video file
         {
-            mediaFolder = std::getenv("VIDEOS");
-            recode = "--recode-video "s + extension;
+            media_env_var = std::getenv("VIDEOS");
+            recode = "--recode-video "s + extension_string;
             quality = "bestvideo+bestaudio";
         }
         else
-        // is neither audio or video! abort and report to stderr
+        // is neither audio or video! abort and report to stderr!
         {
-            std::cerr << "Invalid file format! " << extension << "\n";
+            std::cerr << "Invalid file format! " << extension_string << "\n";
             std::exit(1);
         }
-        return {mediaFolder, recode, quality};
+
+        if (filepath.has_parent_path())
+        {
+            fs::path parentPath = filepath.parent_path();
+            if (!fs::exists(parentPath)) // create parent directories if they don't exist
+            {
+                std::cout << "Creating parent directories... " << parentPath.lexically_normal().string() << "\n";
+                fs::create_directories(parentPath);
+            }
+            media_dir = parentPath;
+        }
+        else
+            // check if preferred parent is set and exists, else set parent to current path
+            media_dir = (media_env_var == nullptr || !fs::exists(media_env_var)) ? fs::current_path() : fs::path(media_env_var);
+
+        // media_dir is now filepath.
+
+        if (print_filepath)
+            std::cout << (media_dir / filename).string() << "\n";
+
+        media_dir /= filepath.stem(); // append filename to media directory to form filepath
+        return {media_dir.make_preferred().lexically_normal(), recode, quality};
     }
 
     void check_has_extension(const fs::path &filepath)
     {
+        // extension-less file! terminate and report to stderr
         if (filepath.extension().empty())
         {
             std::cerr << "Invalid Filename! " << filepath << '\n';
@@ -145,6 +153,7 @@ std::string get_URL()
 int main(int argc, char **argv)
 {
     bool verbose = false;
+    bool print_filename = true;
     int non_flag_args = 0;
     fs::path filepath;
     bool flag_lock = false;
@@ -163,6 +172,11 @@ int main(int argc, char **argv)
         }
         else
         {
+            if (arg_str == "--noprint")
+            {
+                print_filename = false;
+                break;
+            }
             if (arg_str == "-v")
                 verbose = true;
             arguments.push_back(arg_str);
@@ -171,16 +185,14 @@ int main(int argc, char **argv)
     }
     if (non_flag_args < 1)
         filepath = get_filepath(verbose);
+
     fileop::check_has_extension(filepath);
-    std::string extension = filepath.extension().string().substr(1); // extension withouth .
-    fs::path filename = filepath.filename();
-    auto [mediaFolder, recode, quality] = fileop::get_mediadir_and_args(filename.string(), extension);
-    filepath = fs::absolute(fileop::resolve_filepath(filepath, mediaFolder)); // resolve and convert to absolute
-    std::cout << filepath.string() << "." << extension << "\n";
+    auto [filepath_noext, recode, quality] = fileop::get_path_and_args(filepath, print_filename);
+    filepath = fs::absolute(filepath_noext); // resolve and convert to absolute
+
     if (non_flag_args < 2)
         URL = get_URL();
 
-    // extension-less file! terminate and report to stderr
     if (!std::regex_match(URL, std::regex(R"(^(https?\:\/\/)?(www\.youtube\.com|youtu\.?be)\/.+$)")))
     {
         char input;
@@ -207,7 +219,7 @@ int main(int argc, char **argv)
     std::string command = "youtube-dl -f "s + quality + " "s + URL + " "s + recode + " -o '" + filepath.string() + ".%(ext)s'" + " --no-mtime"s;
     for (std::string i : arguments)
         command += " "s + i;
-    if (verbose)
-        std::cout << command << "\n";
+
+    std::cout << command << "\n";
     std::system(command.c_str());
 }
