@@ -154,6 +154,7 @@ int main(int argc, char **argv)
 {
     bool verbose = false;
     bool print_filename = true;
+    bool disable_mtime = false;
     int non_flag_args = 0;
     fs::path filepath;
     bool flag_lock = false;
@@ -175,6 +176,11 @@ int main(int argc, char **argv)
             if (arg_str == "--noprint")
             {
                 print_filename = false;
+                break;
+            }
+            if (arg_str == "--utime")
+            {
+                disable_mtime = true;
                 break;
             }
             if (arg_str == "-v")
@@ -216,10 +222,13 @@ int main(int argc, char **argv)
             std::exit(1);
     }
 
-    std::string command = "youtube-dl -f "s + quality + " "s + URL + " "s + recode + " -o '" + filepath.string() + ".%(ext)s'" + " --no-mtime"s;
+    std::string command = "youtube-dl -f "s + quality + " "s + URL + " "s + recode + " -o '" + filepath.string() + ".%(ext)s'";
+    if (!disable_mtime)
+        command += " --no-mtime "s;
     for (std::string i : arguments)
         command += " "s + i;
 
-    std::cout << command << "\n";
+    if (verbose)
+        std::cout << command << "\n";
     std::system(command.c_str());
 }
