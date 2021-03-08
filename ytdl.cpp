@@ -174,19 +174,16 @@ int main(int argc, char **argv)
         else
         {
             if (arg_str == "--noprint")
-            {
                 print_filename = false;
-                break;
-            }
-            if (arg_str == "--utime")
-            {
+            else if (arg_str == "--utime")
                 disable_mtime = true;
-                break;
+            else
+            {
+                if (arg_str == "-v")
+                    verbose = true;
+                arguments.push_back(arg_str);
+                flag_lock = true;
             }
-            if (arg_str == "-v")
-                verbose = true;
-            arguments.push_back(arg_str);
-            flag_lock = true;
         }
     }
     if (non_flag_args < 1)
@@ -207,7 +204,7 @@ int main(int argc, char **argv)
             std::cout << "'" << URL << "' is not a valid URL."
                       << " Search \"" << URL
                       << "\" on youtube instead?(y/n): ";
-            std::cin >> input;
+            std::cin.get(input);
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
             if ((input == 'y') || (input == 'n'))
